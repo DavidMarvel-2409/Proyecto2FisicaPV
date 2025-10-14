@@ -1,4 +1,11 @@
-﻿using Microsoft.Xna.Framework;
+﻿/*
+ Codigo creado por:
+        -David Valdés Hernández
+        -Pedro Morales Méndez
+        -Daniel Muñoz Muñoz
+ */
+
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -24,12 +31,20 @@ namespace ProyectoUnidad2DaValDaMuPeMo
         // Transformaciones
         private Matrix _world, _view, _proj;
         private float _angle;     // animación de rotación
-        private bool _rotate = true;
+        private bool _rotate = false;
 
         // Render states
         private RasterizerState _rsSolid;
         private RasterizerState _rsWire;
         private bool _wireframe = false;
+
+
+        //controles
+        private Keys UP = Keys.W, DOWN = Keys.S, LEFT = Keys.A, RIGHT = Keys.D, FRONT = Keys.Up, BACK = Keys.Down;
+
+        private Vector3 _position = new Vector3(0, 0, 0);
+        private float speed = 0.02f;
+        private bool rotate_press = false;
 
         public Game1()
         {
@@ -52,6 +67,9 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             _rsSolid = new RasterizerState { CullMode = CullMode.CullCounterClockwiseFace, FillMode = FillMode.Solid };
             _rsWire = new RasterizerState { CullMode = CullMode.None, FillMode = FillMode.WireFrame };
 
+
+            redim(720);
+
             base.Initialize();
         }
 
@@ -68,7 +86,7 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             };
             _effect.EnableDefaultLighting();
             _effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(-1f, -1f, -0.5f));
-            _effect.DirectionalLight0.DiffuseColor = new Vector3(0.9f, 0.9f, 0.9f);
+            _effect.DirectionalLight0.DiffuseColor = new Vector3(0.2f, 0.9f, 0.3f);
 
             // Construye la esfera dentro de Game1 (sin clases extra)
             BuildSphereMesh(_radius, _stacks, _slices);
@@ -160,19 +178,37 @@ namespace ProyectoUnidad2DaValDaMuPeMo
                 Exit();
 
             // Wireframe mientras esté presionada W
-            _wireframe = k.IsKeyDown(Keys.W);
+            _wireframe = k.IsKeyDown(Keys.R);
 
             // Pausar/continuar rotación (Espacio)
-            if (k.IsKeyDown(Keys.Space))
-                _rotate = false;
+            if (k.IsKeyDown(Keys.Space) && !rotate_press)
+            {
+                _rotate = !_rotate;
+                rotate_press = true;
+            }
             if (k.IsKeyUp(Keys.Space))
-                _rotate = true;
+                rotate_press = false;
 
             if (_rotate)
                 _angle += (float)gameTime.ElapsedGameTime.TotalSeconds * 0.7f;
 
             // Rotamos en Y (meridianos θ) y un poco en X para percibir normales
             _world = Matrix.CreateRotationY(_angle) * Matrix.CreateRotationX(0.25f);
+
+            if (k.IsKeyDown(UP))
+                _position.Y -= speed;
+            if (k.IsKeyDown(DOWN))
+                _position.Y += speed;
+            if (k.IsKeyDown(LEFT))
+                _position.X -= speed;
+            if (k.IsKeyDown(RIGHT))
+                _position.X += speed;
+            if (k.IsKeyDown(FRONT))
+                _position.Z += speed;
+            if (k.IsKeyDown(BACK))
+                _position.Z -= speed;
+
+            _world = Matrix.CreateTranslation(_position) * Matrix.CreateRotationX(_angle);
 
             base.Update(gameTime);
         }
@@ -211,6 +247,14 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             _ib?.Dispose();
             _effect?.Dispose();
             base.UnloadContent();
+        }
+
+        private void redim(int H)
+        {
+            int W = (H * 16) / 9;
+            _gdm.PreferredBackBufferHeight = H;
+            _gdm.PreferredBackBufferWidth = W;
+            _gdm.ApplyChanges();
         }
     }
 }
