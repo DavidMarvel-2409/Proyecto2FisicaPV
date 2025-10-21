@@ -24,27 +24,30 @@ namespace ProyectoUnidad2DaValDaMuPeMo
         private int _primitiveCount; // triángulos totales
 
         // Parámetros de malla (ligados a la presentación)
-        private float _radius = 1f;
+        private float _radius = 0.25f;
         private int _stacks = 18; // φ (0..π)
         private int _slices = 36; // θ (0..2π)
 
         // Transformaciones
         private Matrix _world, _view, _proj;
         private float _angle;     // animación de rotación
-        private bool _rotate = false;
+        private bool _rotate = true;
 
         // Render states
         private RasterizerState _rsSolid;
         private RasterizerState _rsWire;
         private bool _wireframe = false;
 
+        Random rnd = new Random();
+        private float worldLimits = /*1.2f*/(16 / 9) * 1.4f;
+        private Vector3 _pos;
+        private Vector3 _vel;
+        private Vector3 _accel;
+        private float _g = -9.8f;
 
-        //controles
-        private Keys UP = Keys.W, DOWN = Keys.S, LEFT = Keys.A, RIGHT = Keys.D, FRONT = Keys.Up, BACK = Keys.Down;
-
-        private Vector3 _position = new Vector3(0, 0, 0);
-        private float speed = 0.02f;
-        private bool rotate_press = false;
+        //Controles
+        Keys LEFT = Keys.A, RIGHT = Keys.D, FRONT = Keys.W, BACK = Keys.S, JUMP = Keys.Space, EXIT = Keys.Escape, WINDOW_PLUS = Keys.Up, WINDOW_MINUS = Keys.Down;
+        int _H;
 
         public Game1()
         {
@@ -67,8 +70,12 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             _rsSolid = new RasterizerState { CullMode = CullMode.CullCounterClockwiseFace, FillMode = FillMode.Solid };
             _rsWire = new RasterizerState { CullMode = CullMode.None, FillMode = FillMode.WireFrame };
 
+            _pos = Vector3.Zero;
+            _vel = new Vector3(rnd.Next(-3, 3), 0, rnd.Next(-3, 3)); ;
+            _accel = new Vector3(0, _g, 0);
 
-            redim(720);
+            _H = 720;
+            redim(_H);
 
             base.Initialize();
         }
@@ -86,7 +93,7 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             };
             _effect.EnableDefaultLighting();
             _effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(-1f, -1f, -0.5f));
-            _effect.DirectionalLight0.DiffuseColor = new Vector3(0.2f, 0.9f, 0.3f);
+            _effect.DirectionalLight0.DiffuseColor = new Vector3(0.9f, 0.9f, 0.9f);
 
             // Construye la esfera dentro de Game1 (sin clases extra)
             BuildSphereMesh(_radius, _stacks, _slices);
@@ -174,41 +181,73 @@ namespace ProyectoUnidad2DaValDaMuPeMo
         protected override void Update(GameTime gameTime)
         {
             var k = Keyboard.GetState();
-            if (k.IsKeyDown(Keys.Escape))
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            if (k.IsKeyDown(WINDOW_PLUS))
+            {
+                _H++;
+                redim(_H);
+            }
+            else if (k.IsKeyDown(WINDOW_MINUS))
+            {
+                _H--;
+                redim(_H);
+            }
+
+            if (k.IsKeyDown(LEFT)) _accel.X = -3;
+            else if (k.IsKeyDown(RIGHT)) _accel.X = 3;
+            else _accel.X = 0;
+
+            if (k.IsKeyDown(FRONT)) _accel.Z = -3;
+            else if (k.IsKeyDown(BACK)) _accel.Z = 3;
+            else _accel.Z = 0;
+
+            _vel += _accel * deltaTime;
+            _vel *= 0.995f;
+            _pos += _vel * deltaTime;
+
+            if (_pos.Y + _radius < -worldLimits)
+            {
+                _pos.Y = -worldLimits - _radius;
+                _vel.Y *= -1 * 0.9f;
+            }
+
+            if (_pos.X + _radius >= worldLimits * 1.5f) _vel.X *= -1;
+            if (_pos.X + _radius <= -worldLimits * 1.5f) _vel.X *= -1;
+            if (_pos.Z + _radius >= worldLimits) _vel.Z *= -1;
+            if (_pos.Z + _radius <= -worldLimits) _vel.Z *= -1;
+
+            if (_pos.Y == -worldLimits - _radius)
+                if (k.IsKeyDown(JUMP))
+                    _vel.Y = 7.5f;
+
+            if (k.IsKeyDown(EXIT))
                 Exit();
 
             // Wireframe mientras esté presionada W
-            _wireframe = k.IsKeyDown(Keys.R);
+            _wireframe = k.IsKeyDown(Keys.I);
 
-            // Pausar/continuar rotación (Espacio)
-            if (k.IsKeyDown(Keys.Space) && !rotate_press)
-            {
-                _rotate = !_rotate;
-                rotate_press = true;
-            }
-            if (k.IsKeyUp(Keys.Space))
-                rotate_press = false;
+
+            Console.WriteLine($"X: {MathF.Round(_pos.X, 2)}, " +
+                $"Y: {MathF.Round(_pos.Y, 2)}, " +
+                $"Z: {MathF.Round(_pos.Z, 2)}, " +
+                $"Vel X: {MathF.Round(_vel.X, 2)}, " +
+                $"Vel Y: {MathF.Round(_vel.Y, 2)}, " +
+                $"Vel Z: {MathF.Round(_vel.Z, 2)}, " +
+                $"Accel X: {MathF.Round(_accel.X, 2)}, " +
+                $"Accel Y: {MathF.Round(_accel.Y, 2)}, " +
+                $"Accel Z: {MathF.Round(_accel.Z, 2)}"
+            );
 
             if (_rotate)
                 _angle += (float)gameTime.ElapsedGameTime.TotalSeconds * 0.7f;
 
             // Rotamos en Y (meridianos θ) y un poco en X para percibir normales
-            _world = Matrix.CreateRotationY(_angle) * Matrix.CreateRotationX(0.25f);
 
-            if (k.IsKeyDown(UP))
-                _position.Y -= speed;
-            if (k.IsKeyDown(DOWN))
-                _position.Y += speed;
-            if (k.IsKeyDown(LEFT))
-                _position.X -= speed;
-            if (k.IsKeyDown(RIGHT))
-                _position.X += speed;
-            if (k.IsKeyDown(FRONT))
-                _position.Z += speed;
-            if (k.IsKeyDown(BACK))
-                _position.Z -= speed;
-
-            _world = Matrix.CreateTranslation(_position) * Matrix.CreateRotationX(_angle);
+            _world =
+                //Matrix.CreateRotationY(_angle) *
+                Matrix.CreateTranslation(_pos) *
+                Matrix.CreateRotationX(0.25f);
 
             base.Update(gameTime);
         }
@@ -256,5 +295,6 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             _gdm.PreferredBackBufferWidth = W;
             _gdm.ApplyChanges();
         }
+
     }
 }
