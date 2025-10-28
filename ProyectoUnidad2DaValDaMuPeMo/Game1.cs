@@ -16,6 +16,9 @@ namespace ProyectoUnidad2DaValDaMuPeMo
     public class Game1 : Game
     {
         private GraphicsDeviceManager _gdm;
+        private SpriteBatch _sb;
+        private SpriteFont _font;
+        private Texture2D _tex;
         private BasicEffect _effect;
 
         // Buffers de la esfera
@@ -45,8 +48,19 @@ namespace ProyectoUnidad2DaValDaMuPeMo
         private Vector3 _accel;
         private float _g = -9.8f;
 
+        //Datos de la camara
+        private Vector3 _camPos = new Vector3(0, 0, 4.5f);
+        private float cam_rot_y = MathF.PI;
+        private float cam_rot_x = 0f;
+        private float cam_speed = 3f;
+        private float _mouseSensitivity = 0.002f;
+        private MouseState mouse_state;
+
         //Controles
-        Keys LEFT = Keys.A, RIGHT = Keys.D, FRONT = Keys.W, BACK = Keys.S, JUMP = Keys.Space, EXIT = Keys.Escape, WINDOW_PLUS = Keys.Up, WINDOW_MINUS = Keys.Down;
+        Keys LEFT = Keys.A, RIGHT = Keys.D, FRONT = Keys.W, BACK = Keys.S, 
+            JUMP = Keys.Space, EXIT = Keys.Escape, WINDOW_PLUS = Keys.N, WINDOW_MINUS = Keys.M,
+            CAM_FRONT = Keys.Up, CAM_BACK = Keys.Down, CAM_LEFT = Keys.Left, CAM_RIGHT = Keys.Right, 
+            CAM_UP = Keys.LeftShift, CAM_DOWN = Keys.LeftControl;
         int _H;
 
         public Game1()
@@ -74,7 +88,9 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             _vel = new Vector3(rnd.Next(-3, 3), 0, rnd.Next(-3, 3)); ;
             _accel = new Vector3(0, _g, 0);
 
-            _H = 720;
+            mouse_state = Mouse.GetState();
+
+            _H = 500;
             redim(_H);
 
             base.Initialize();
@@ -94,6 +110,11 @@ namespace ProyectoUnidad2DaValDaMuPeMo
             _effect.EnableDefaultLighting();
             _effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(-1f, -1f, -0.5f));
             _effect.DirectionalLight0.DiffuseColor = new Vector3(0.9f, 0.9f, 0.9f);
+
+            _sb = new SpriteBatch(GraphicsDevice);
+            _font = Content.Load<SpriteFont>("fuente");
+            _tex = new Texture2D(GraphicsDevice, 1, 1);
+            _tex.SetData(new[] { Color.White });
 
             // Construye la esfera dentro de Game1 (sin clases extra)
             BuildSphereMesh(_radius, _stacks, _slices);
@@ -249,6 +270,44 @@ namespace ProyectoUnidad2DaValDaMuPeMo
                 Matrix.CreateTranslation(_pos) *
                 Matrix.CreateRotationX(0.25f);
 
+            //Controles de la camara
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            var m = Mouse.GetState();
+
+            //direcciones de la camara
+            Vector3 mov_front_back = Vector3.Normalize(new Vector3(MathF.Sin(cam_rot_y), 0, MathF.Cos(cam_rot_y)));
+            Vector3 mov_left_right = Vector3.Normalize(new Vector3(-mov_front_back.Z, 0, mov_front_back.X));
+
+            if (k.IsKeyDown(CAM_FRONT)) _camPos += mov_front_back * cam_speed * dt;
+            if (k.IsKeyDown(CAM_BACK)) _camPos -= mov_front_back * cam_speed * dt;
+            if (k.IsKeyDown(CAM_LEFT)) _camPos -= mov_left_right * cam_speed * dt;
+            if (k.IsKeyDown(CAM_RIGHT)) _camPos += mov_left_right * cam_speed * dt;
+            if (k.IsKeyDown(CAM_UP)) _camPos.Y += cam_speed * dt;
+            if (k.IsKeyDown(CAM_DOWN)) _camPos.Y -= cam_speed * dt;
+
+            //rotacion con el mouse
+            if (m.LeftButton == ButtonState.Pressed)
+            {
+                float dx = m.X - mouse_state.X;
+                float dy = m.Y - mouse_state.Y;
+
+                cam_rot_y -= dx * _mouseSensitivity;
+                cam_rot_x -= dy * _mouseSensitivity;
+                cam_rot_x = Math.Clamp(cam_rot_x, -MathF.PI / 2f, MathF.PI / 2f);
+            }
+
+            mouse_state = m;
+
+            //recalculado de matriz para el view
+            Vector3 lookDir = new Vector3(
+                MathF.Sin(cam_rot_y) * MathF.Cos(cam_rot_x),
+                MathF.Sin(cam_rot_x),
+                MathF.Cos(cam_rot_y) * MathF.Cos(cam_rot_x)
+            );
+            Vector3 target = _camPos + lookDir;
+            _view = Matrix.CreateLookAt(_camPos, target, Vector3.Up);
+
+
             base.Update(gameTime);
         }
 
@@ -276,6 +335,41 @@ namespace ProyectoUnidad2DaValDaMuPeMo
                     primitiveCount: _primitiveCount
                 );
             }
+
+            //informacion en pantalla
+            _sb.Begin();
+            //info pelota
+            string info = new string("BallCoor: \n  X: " + MathF.Round(_pos.X, 2) +
+                                            "\n Y: " + MathF.Round(_pos.Y, 2) +
+                                            "\n Z: " + MathF.Round(_pos.Z, 2));
+            Rectangle box = new Rectangle(GraphicsDevice.Viewport.Width / 40,
+                                        GraphicsDevice.Viewport.Height / 40,
+                                        (int)_font.MeasureString(info).X + GraphicsDevice.Viewport.Width / 40,
+                                        (int)_font.MeasureString(info).Y + GraphicsDevice.Viewport.Height / 40);
+            _sb.Draw(_tex, box, Color.White);
+            Vector2 inf_pos = new Vector2(box.X + 10, box.Center.Y - (_font.MeasureString(info).Y/2));
+            _sb.DrawString(_font, info, inf_pos, Color.Black);
+            //info camara pos
+            box.X += (int)(box.Width * 1.1f);
+            info = new string("CamaraCoor: \n X: " + MathF.Round(_camPos.X, 2) +
+                                            "\n Y: " + MathF.Round(_camPos.Y, 2) +
+                                            "\n Z: " + MathF.Round(_camPos.Z, 2));
+            box.Width = (int)_font.MeasureString(info).X + GraphicsDevice.Viewport.Width / 40;
+            box.Height = (int)_font.MeasureString(info).Y + GraphicsDevice.Viewport.Height / 40;
+            inf_pos = new Vector2(box.X + 10, box.Center.Y - (_font.MeasureString(info).Y / 2));
+            _sb.Draw(_tex, box, Color.White);
+            _sb.DrawString(_font, info, inf_pos, Color.Black);
+            //info camara direct
+            box.X += (int)(box.Width * 1.1f);
+            info = new string("CamaraCoor: \n X: " + MathF.Round(cam_rot_x, 2) +
+                                            "\n Y: " + MathF.Round(cam_rot_y, 2));
+            box.Width = (int)_font.MeasureString(info).X + GraphicsDevice.Viewport.Width / 40;
+            box.Height = (int)_font.MeasureString(info).Y + GraphicsDevice.Viewport.Height / 40;
+            inf_pos = new Vector2(box.X + 10, box.Center.Y - (_font.MeasureString(info).Y / 2));
+            _sb.Draw(_tex, box, Color.White);
+            _sb.DrawString(_font, info, inf_pos, Color.Black);
+
+            _sb.End();
 
             base.Draw(gameTime);
         }
